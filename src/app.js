@@ -46,7 +46,7 @@ function activeTrackMetrics() {
     return null;
   }
 
-  const target = { latitude: state.activeTrack.latitude, longitude: state.activeTrack.longitude };
+  const target = { latitude: state.activeTrack.lat, longitude: state.activeTrack.lon };
   const bearing = bearingDegrees(state.origin, target);
   const distanceKm = haversineDistanceKm(state.origin, target);
   const direction = bearingToCardinal(bearing);
@@ -99,8 +99,8 @@ function startSelectedGeotrack() {
   setActiveTrack({
     cacheId: geocache.id,
     cacheName: geocache.name,
-    latitude: geocache.latitude,
-    longitude: geocache.longitude
+    lat: geocache.latitude,
+    lon: geocache.longitude
   });
   state.companionStatus = "Geotrack aktiv.";
   renderCompanion();
@@ -237,11 +237,11 @@ function renderCompanion() {
     <form id="track-coordinate-form" class="track-form">
       <label>
         Latitude
-        <input id="track-latitude" type="number" step="0.000001" value="${track.latitude}" required />
+        <input id="track-latitude" type="number" step="0.000001" value="${track.lat}" required />
       </label>
       <label>
         Longitude
-        <input id="track-longitude" type="number" step="0.000001" value="${track.longitude}" required />
+        <input id="track-longitude" type="number" step="0.000001" value="${track.lon}" required />
       </label>
       <div class="companion-actions">
         <button type="submit">Koordinate speichern</button>
@@ -258,8 +258,8 @@ function renderCompanion() {
     const longitudeInput = document.getElementById("track-longitude");
     const nextTrack = normalizeActiveTrack({
       ...state.activeTrack,
-      latitude: latitudeInput?.value,
-      longitude: longitudeInput?.value
+      lat: latitudeInput?.value,
+      lon: longitudeInput?.value
     });
 
     if (!nextTrack) {

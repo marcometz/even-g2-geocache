@@ -15,14 +15,14 @@ export function normalizeActiveTrack(raw) {
 
   const cacheId = String(raw.cacheId ?? "").trim();
   const cacheName = String(raw.cacheName ?? "").trim();
-  const latitude = normalizeCoordinate(raw.latitude, { min: -90, max: 90 });
-  const longitude = normalizeCoordinate(raw.longitude, { min: -180, max: 180 });
+  const lat = normalizeCoordinate(raw.lat, { min: -90, max: 90 });
+  const lon = normalizeCoordinate(raw.lon, { min: -180, max: 180 });
 
-  if (!cacheId || !cacheName || latitude === null || longitude === null) {
+  if (!cacheId || !cacheName || lat === null || lon === null) {
     return null;
   }
 
-  return { cacheId, cacheName, latitude, longitude };
+  return { cacheId, cacheName, lat, lon };
 }
 
 export function loadActiveTrack(storage = globalThis.localStorage) {

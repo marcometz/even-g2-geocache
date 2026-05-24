@@ -21,24 +21,24 @@ test("normalizeActiveTrack validates fields and coordinate ranges", () => {
   const normalized = normalizeActiveTrack({
     cacheId: "GC123",
     cacheName: "Demo Cache",
-    latitude: "47.11",
-    longitude: "8.55"
+    lat: "47.11",
+    lon: "8.55"
   });
   assert.deepEqual(normalized, {
     cacheId: "GC123",
     cacheName: "Demo Cache",
-    latitude: 47.11,
-    longitude: 8.55
+    lat: 47.11,
+    lon: 8.55
   });
 
-  assert.equal(normalizeActiveTrack({ cacheId: "GC123", cacheName: "Demo", latitude: 190, longitude: 8 }), null);
-  assert.equal(normalizeActiveTrack({ cacheId: "GC123", cacheName: "Demo", latitude: 47, longitude: 181 }), null);
+  assert.equal(normalizeActiveTrack({ cacheId: "GC123", cacheName: "Demo", lat: 190, lon: 8 }), null);
+  assert.equal(normalizeActiveTrack({ cacheId: "GC123", cacheName: "Demo", lat: 47, lon: 181 }), null);
 });
 
 test("saveActiveTrack persists normalized track and can clear it", () => {
   const storage = createStorage();
   const saved = saveActiveTrack(
-    { cacheId: "GC55", cacheName: "Track Name", latitude: 47.3, longitude: 8.4 },
+    { cacheId: "GC55", cacheName: "Track Name", lat: 47.3, lon: 8.4 },
     storage
   );
 
@@ -55,7 +55,7 @@ test("loadActiveTrack returns null for invalid or malformed payload", () => {
   assert.equal(loadActiveTrack(malformedStorage), null);
 
   const invalidStorage = createStorage({
-    "even-g2.active-geotrack": JSON.stringify({ cacheId: "GC1", cacheName: "X", latitude: 95, longitude: 8 })
+    "even-g2.active-geotrack": JSON.stringify({ cacheId: "GC1", cacheName: "X", lat: 95, lon: 8 })
   });
   assert.equal(loadActiveTrack(invalidStorage), null);
 });
