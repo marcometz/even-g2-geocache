@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "start": "python3 -m http.server 4173"
+    "start": "python3 -m http.server 5173",
+    "simulator": "evenhub-simulator http://localhost:5173"
   }
 }

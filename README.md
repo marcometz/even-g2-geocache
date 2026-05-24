@@ -21,11 +21,41 @@ Interactions:
 - Finder single click: show hint
 - Finder double click: back to details
 
-## Run
+## Local development (aligned with Even "Your First App")
+
+The Even docs run the simulator against a local web URL (example: `evenhub-simulator http://localhost:5173`).
+This project is configured the same way.
+
+### 1) Start local web server
 
 ```bash
-npm test
 npm start
 ```
 
-Then open `http://localhost:4173`.
+This serves the app on `http://localhost:5173`.
+
+### 2) Run the Even simulator against the local URL
+
+Prerequisite (once):
+
+```bash
+npm install -g @evenrealities/evenhub-simulator
+```
+
+Then start the simulator:
+
+```bash
+npm run simulator
+```
+
+Equivalent direct command:
+
+```bash
+evenhub-simulator http://localhost:5173
+```
+
+## Tests
+
+```bash
+npm test
+```
