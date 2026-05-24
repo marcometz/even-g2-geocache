@@ -12,23 +12,32 @@ const state = {
   showHint: false
 };
 
+function clampLabel(value, maxLength = 64) {
+  if (!value) {
+    return "";
+  }
+  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
+}
+
 function selectedGeocache() {
   return state.geocaches[state.selectedIndex];
 }
 
 function geocacheItemTemplate(item, index) {
-  const selectedClass = index === state.selectedIndex ? "selected" : "";
+  const selected = index === state.selectedIndex;
+  const selectedClass = selected ? "selected" : "";
+  const marker = selected ? "▶" : "▷";
   return `<li class="geocache-item ${selectedClass}" data-index="${index}">
-    <h3>${item.name}</h3>
+    <p>${marker} ${clampLabel(item.name, 52)}</p>
     <p>${item.direction} · ${item.distanceKm.toFixed(2)} km</p>
   </li>`;
 }
 
 function renderList() {
-  const list = state.geocaches.map(geocacheItemTemplate).join("");
+  const list = state.geocaches.slice(0, 20).map(geocacheItemTemplate).join("");
   root.innerHTML = `
-    <h2>Startscreen</h2>
-    <p class="helper">Geocaches within 5km · swipe up/down (or mouse wheel) to scroll · click to open details</p>
+    <p class="screen-title">G2 GEOCACHE // LIST</p>
+    <p class="helper">Radius 5km · swipe/arrow scroll · click open</p>
     <ul class="geocache-list">${list}</ul>
   `;
 
@@ -45,14 +54,18 @@ function renderList() {
 function renderDetail() {
   const geocache = selectedGeocache();
   root.innerHTML = `
-    <h2>DetailScreen</h2>
-    <h3>${geocache.name}</h3>
-    <p>${geocache.description}</p>
-    <p>Distance: ${geocache.distanceKm.toFixed(2)} km (${geocache.direction})</p>
-    <p>Difficulty: ${geocache.difficulty}</p>
-    <p>Terrain: ${geocache.terrain}</p>
-    <p>Type: ${geocache.type} · Size: ${geocache.size} · Code: ${geocache.id}</p>
-    <p class="helper">Double-click: back to list · Click: enter geocache finder</p>
+    <p class="screen-title">CACHE // DETAIL</p>
+    <div class="detail-block">
+      <p class="detail-name">${clampLabel(geocache.name)}</p>
+      <p>${clampLabel(geocache.description, 180)}</p>
+    </div>
+    <div class="detail-block">
+      <p>DST ${geocache.distanceKm.toFixed(2)}km · ${geocache.direction}</p>
+      <p>DIFF ${geocache.difficulty} · TERR ${geocache.terrain}</p>
+      <p>${clampLabel(`TYPE ${geocache.type} · SIZE ${geocache.size}`, 40)}</p>
+      <p>CODE ${geocache.id}</p>
+    </div>
+    <p class="helper">click finder · dblclick list</p>
   `;
 
   root.onclick = () => {
@@ -69,15 +82,15 @@ function renderDetail() {
 
 function renderFinder() {
   const geocache = selectedGeocache();
-  const hint = state.showHint ? `<p><strong>Hint:</strong> ${geocache.hint}</p>` : "";
+  const hint = state.showHint ? `<p class="hint-text">HINT ${clampLabel(geocache.hint, 220)}</p>` : "";
 
   root.innerHTML = `
-    <h2>Geocache Finder</h2>
-    <h3>${geocache.name}</h3>
+    <p class="screen-title">CACHE // FINDER</p>
+    <p>${clampLabel(geocache.name, 54)}</p>
     <div class="arrow" aria-label="direction arrow">${cardinalToArrow(geocache.direction)}</div>
     <p>${geocache.direction} · ${geocache.distanceKm.toFixed(2)} km</p>
     ${hint}
-    <p class="helper">Click: show hint · Double-click: back to detail view</p>
+    <p class="helper">click hint · dblclick detail</p>
   `;
 
   root.onclick = () => {

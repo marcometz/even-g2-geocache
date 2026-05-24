@@ -1,60 +1,73 @@
 :root {
   color-scheme: dark;
   font-family: Inter, system-ui, sans-serif;
+  --g0: #000;
+  --g1: #133016;
+  --g2: #1e4f25;
+  --g3: #2c7a36;
+  --g4: #77d06f;
 }
 
 body {
   margin: 0;
-  background: #020617;
-  color: #e2e8f0;
+  background: #040a04;
+  color: var(--g4);
 }
 
 .app {
-  max-width: 880px;
+  max-width: 920px;
   margin: 0 auto;
-  padding: 1rem;
+  padding: 1.2rem;
 }
 
 .companion,
 .glass-screen {
-  border: 1px solid #1e293b;
-  border-radius: 0.75rem;
-  padding: 1rem;
+  border: 1px solid var(--g2);
+  border-radius: 0.25rem;
+  padding: 0.7rem;
   margin-bottom: 1rem;
-  background: #0f172a;
+  background: transparent;
+}
+
+.glass-screen {
+  width: 576px;
+  height: 288px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .geocache-list {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  gap: 0.35rem;
 }
 
 .geocache-item {
-  border: 1px solid #334155;
-  border-radius: 0.5rem;
-  margin: 0.4rem 0;
-  padding: 0.6rem;
+  border: 1px solid var(--g1);
+  border-radius: 0;
+  margin: 0;
+  padding: 0.28rem 0.36rem;
   cursor: pointer;
 }
 
 .geocache-item.selected {
-  border-color: #38bdf8;
-  background: #082f49;
+  border-color: var(--g4);
 }
 
 h1,
 h2,
 h3,
 p {
-  margin: 0.35rem 0;
+  margin: 0.2rem 0;
 }
 
 button {
-  background: #1d4ed8;
-  color: #f8fafc;
-  border: none;
-  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--g4);
+  border: 1px solid var(--g2);
+  border-radius: 0.25rem;
   padding: 0.5rem 0.75rem;
 }
 
@@ -62,11 +75,36 @@ button:disabled {
   opacity: 0.5;
 }
 
+.screen-title {
+  letter-spacing: 0.08em;
+  color: var(--g3);
+  border-bottom: 1px solid var(--g1);
+  padding-bottom: 0.22rem;
+  margin-bottom: 0.28rem;
+}
+
+.detail-block {
+  border: 1px solid var(--g1);
+  padding: 0.35rem;
+  margin-top: 0.38rem;
+}
+
+.detail-name {
+  color: var(--g4);
+}
+
 .helper {
-  color: #94a3b8;
-  font-size: 0.9rem;
+  color: var(--g3);
+  font-size: 0.78rem;
 }
 
 .arrow {
   font-size: 2rem;
+  line-height: 1;
+  margin: 0.28rem 0;
+}
+
+.hint-text {
+  border: 1px solid var(--g1);
+  padding: 0.35rem;
 }
