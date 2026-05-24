@@ -12,6 +12,7 @@ Geocaching app prototype for Even Realities G2.
 - **Startscreen** with geocaches in a 5km radius (from Geocaching REST API, with fallback demo data)
 - **DetailScreen** with cache details (name, description, distance, difficulty, terrain, type, size, code)
 - **Geocache Finder** with direction + distance compass style and hint display
+- **Display-style redesign** aligned to Even G2 constraints (576x288, grayscale, border-first grouping)
 
 Interactions:
 - List: swipe up/down (touch), mouse wheel, or arrow keys to move selection
@@ -59,3 +60,9 @@ evenhub-simulator http://localhost:5173
 ```bash
 npm test
 ```
+
+## Copilot Skill
+
+This repository includes a GitHub Copilot skill definition in `/skill.md` for Even G2 display-driven view design based on:
+- official Even design Figma
+- Display & UI System constraints
