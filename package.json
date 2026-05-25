@@ -5,7 +5,16 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "start": "python3 -m http.server 5173",
-    "simulator": "evenhub-simulator http://localhost:5173"
+    "dev": "vite --host",
+    "start": "npm run dev -- --port 5173",
+    "start:even": "bash ./scripts/start-even-dev.sh",
+    "simulator": "node ./scripts/simulator.js",
+    "simulator:raw": "evenhub-simulator http://localhost:5173"
+  },
+  "dependencies": {
+    "@evenrealities/even_hub_sdk": "^0.0.10"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
   }
 }

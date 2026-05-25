@@ -1,218 +1,100 @@
 import { fetchNearbyGeocaches } from "./geocachingApi.js";
-import { bearingDegrees, bearingToCardinal, cardinalToArrow, haversineDistanceKm } from "./geo.js";
-import { nextIndex, SCREEN } from "./state.js";
-import { loadActiveTrack, normalizeActiveTrack, saveActiveTrack } from "./activeTrackStore.js";
+import { SCREEN } from "./state.js";
+import { buildGlassesLayout } from "./glassesLayout.js";
+import { EvenHubBridgeClient } from "./bridge/evenHubBridge.js";
+import { applyGlassesInput, applyListSelectionChange } from "./appStateMachine.js";
+import { loadActiveTrack, saveActiveTrack } from "./activeTrackStore.js";
+import { DETAIL_OPTION, handleGeoTrackInput, toggleDetailOption } from "./geotrackController.js";
+import { computeActiveTrackMetrics, normalizeDegrees } from "./trackMetrics.js";
 
 const root = document.getElementById("glass-screen");
 const companionRoot = document.getElementById("companion-content");
+const bridgeClient = new EvenHubBridgeClient();
+let startupRendered = false;
+let liveRenderIntervalId = null;
+let renderInFlight = false;
 
 const state = {
   screen: SCREEN.LIST,
   origin: { latitude: 47.3769, longitude: 8.5417 },
   geocaches: [],
   selectedIndex: 0,
+  detailOptionIndex: DETAIL_OPTION.GEOTRACK,
   showHint: false,
+  viewerHeading: 0,
   activeTrack: loadActiveTrack(),
-  companionStatus: "",
-  viewerHeading: 0
+  activeTrackMetrics: null,
+  companionStatus: ""
 };
 
-function clampLabel(value, maxLength = 64) {
-  if (!value) {
-    return "";
-  }
-  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
+/**
+ * Recomputes active geotrack metrics from live position and heading.
+ * @returns {void}
+ */
+function refreshActiveTrackMetrics() {
+  state.activeTrackMetrics = computeActiveTrackMetrics(state.origin, state.activeTrack, state.viewerHeading);
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function normalizeDegrees(degrees) {
-  return ((degrees % 360) + 360) % 360;
-}
-
-function selectedGeocache() {
-  return state.geocaches[state.selectedIndex];
-}
-
-function activeTrackMetrics() {
-  if (!state.activeTrack) {
-    return null;
-  }
-
-  const target = { latitude: state.activeTrack.lat, longitude: state.activeTrack.lon };
-  const bearing = bearingDegrees(state.origin, target);
-  const distanceKm = haversineDistanceKm(state.origin, target);
-  const direction = bearingToCardinal(bearing);
-  return { bearing, distanceKm, direction };
-}
-
-function renderCompassStrip(relativeBearing) {
-  const segmentCount = 31;
-  const markerIndex = Math.round((normalizeDegrees(relativeBearing) / 360) * (segmentCount - 1));
-  return Array.from({ length: segmentCount }, (_, index) => (index === markerIndex ? "▲" : "─")).join("");
-}
-
-function renderActiveTrackBanner() {
-  const metrics = activeTrackMetrics();
-  if (!metrics) {
-    return "";
-  }
-
-  const relativeBearing = normalizeDegrees(metrics.bearing - state.viewerHeading);
-  const heading = Math.round(state.viewerHeading);
-  const target = Math.round(metrics.bearing);
-  return `
-    <div class="active-track-banner">
-      <p class="active-track-title">TRACK ${clampLabel(state.activeTrack.cacheName, 40)}</p>
-      <p class="compass-strip">${renderCompassStrip(relativeBearing)}</p>
-      <p class="compass-meta">DST ${metrics.distanceKm.toFixed(2)}km · ${metrics.direction} · HDG ${heading}° → ${target}°</p>
-    </div>
-  `;
-}
-
-function setActiveTrack(track) {
-  state.activeTrack = saveActiveTrack(track);
-}
-
-function startSelectedGeotrack() {
-  const geocache = selectedGeocache();
-  if (!geocache) {
+/**
+ * Renders a minimal local preview message in the WebView host.
+ * @returns {void}
+ */
+function renderLocalHostPreview() {
+  if (!root) {
     return;
   }
 
-  if (state.activeTrack && state.activeTrack.cacheId !== geocache.id) {
-    const keepGoing = window.confirm(
-      "Ein anderer Geotrack ist aktiv. Soll dieser beendet und der neue Track gestartet werden?"
-    );
-    if (!keepGoing) {
-      return;
-    }
+  root.innerHTML = `
+    <p class="screen-title">Glasses output active</p>
+    <p class="helper">Rendering is handled via EvenHub containers on the glasses display.</p>
+  `;
+}
+
+/**
+ * Creates startup or rebuild calls depending on bridge lifecycle state.
+ * @returns {Promise<void>}
+ */
+async function renderGlasses() {
+  if (renderInFlight) {
+    return;
   }
 
-  setActiveTrack({
-    cacheId: geocache.id,
-    cacheName: geocache.name,
-    lat: geocache.latitude,
-    lon: geocache.longitude
-  });
-  state.companionStatus = "Geotrack aktiv.";
-  renderCompanion();
-  render();
+  renderInFlight = true;
+  try {
+  refreshActiveTrackMetrics();
+  const layout = buildGlassesLayout(state);
+  if (!startupRendered) {
+    startupRendered = await bridgeClient.createStartup(layout);
+    if (!startupRendered) {
+      await bridgeClient.rebuild(layout);
+    }
+    return;
+  }
+
+  await bridgeClient.rebuild(layout);
+  } finally {
+    renderInFlight = false;
+  }
 }
 
-function geocacheItemTemplate(item, index) {
-  const selected = index === state.selectedIndex;
-  const selectedClass = selected ? "selected" : "";
-  const marker = selected ? "▶" : "▷";
-  return `<li class="geocache-item ${selectedClass}" data-index="${index}">
-    <p>${marker} ${escapeHtml(clampLabel(item.name, 52))}</p>
-    <p>${item.direction} · ${item.distanceKm.toFixed(2)} km</p>
-  </li>`;
-}
+/**
+ * Ensures periodic rerenders for realtime heading/distance updates.
+ * @returns {void}
+ */
+function ensureRealtimeRenderLoop() {
+  if (liveRenderIntervalId !== null) {
+    return;
+  }
 
-function renderList() {
-  const list = state.geocaches.slice(0, 20).map(geocacheItemTemplate).join("");
-  root.innerHTML = `
-    <p class="screen-title">G2 GEOCACHE // LIST</p>
-    ${renderActiveTrackBanner()}
-    <p class="helper">Radius 5km · swipe/arrow scroll · click open</p>
-    <ul class="geocache-list">${list}</ul>
-  `;
-
-  root.querySelectorAll(".geocache-item").forEach((element) => {
-    element.addEventListener("click", (event) => {
-      event.stopPropagation();
-      state.selectedIndex = Number(element.getAttribute("data-index"));
-      state.screen = SCREEN.DETAIL;
-      render();
-    });
-  });
-}
-
-function renderDetail() {
-  const geocache = selectedGeocache();
-  root.innerHTML = `
-    <p class="screen-title">CACHE // DETAIL</p>
-    ${renderActiveTrackBanner()}
-    <div class="detail-block">
-      <p class="detail-name">${escapeHtml(clampLabel(geocache.name))}</p>
-      <p>${escapeHtml(clampLabel(geocache.description, 180))}</p>
-    </div>
-    <div class="detail-block">
-      <p>DST ${geocache.distanceKm.toFixed(2)}km · ${geocache.direction}</p>
-      <p>DIFF ${geocache.difficulty} · TERR ${geocache.terrain}</p>
-      <p>${escapeHtml(clampLabel(`TYPE ${geocache.type} · SIZE ${geocache.size}`, 40))}</p>
-      <p>CODE ${escapeHtml(geocache.id)}</p>
-    </div>
-    <button type="button" class="action-btn" data-action="start-track">Geotrack starten</button>
-    <p class="helper">click button: track · click screen: finder · dblclick list</p>
-  `;
-
-  root.onclick = (event) => {
-    if (event.target instanceof Element && event.target.closest('[data-action="start-track"]')) {
-      startSelectedGeotrack();
+  liveRenderIntervalId = window.setInterval(async () => {
+    if (!startupRendered || !state.activeTrack) {
       return;
     }
 
-    state.screen = SCREEN.FINDER;
-    state.showHint = false;
-    render();
-  };
-
-  root.ondblclick = () => {
-    state.screen = SCREEN.LIST;
-    render();
-  };
-}
-
-function renderFinder() {
-  const geocache = selectedGeocache();
-  const hint = state.showHint ? `<p class="hint-text">HINT ${escapeHtml(clampLabel(geocache.hint, 220))}</p>` : "";
-
-  root.innerHTML = `
-    <p class="screen-title">CACHE // FINDER</p>
-    ${renderActiveTrackBanner()}
-    <p>${escapeHtml(clampLabel(geocache.name, 54))}</p>
-    <div class="arrow" aria-label="direction arrow">${cardinalToArrow(geocache.direction)}</div>
-    <p>${geocache.direction} · ${geocache.distanceKm.toFixed(2)} km</p>
-    ${hint}
-    <p class="helper">click hint · dblclick detail</p>
-  `;
-
-  root.onclick = () => {
-    state.showHint = true;
-    render();
-  };
-
-  root.ondblclick = () => {
-    state.screen = SCREEN.DETAIL;
-    state.showHint = false;
-    render();
-  };
-}
-
-function render() {
-  root.onclick = null;
-  root.ondblclick = null;
-
-  if (state.screen === SCREEN.DETAIL) {
-    renderDetail();
-    return;
-  }
-
-  if (state.screen === SCREEN.FINDER) {
-    renderFinder();
-    return;
-  }
-
-  renderList();
+    refreshActiveTrackMetrics();
+    renderCompanion();
+    await renderGlasses();
+  }, 1000);
 }
 
 function renderCompanion() {
@@ -220,172 +102,44 @@ function renderCompanion() {
     return;
   }
 
-  const track = state.activeTrack;
-  const status = state.companionStatus ? `<p class="companion-status">${escapeHtml(state.companionStatus)}</p>` : "";
-
-  if (!track) {
+  if (!state.activeTrack) {
     companionRoot.innerHTML = `
-      <p>Aktiver Geotrack: keiner</p>
-      <p class="helper">Im Cache-Detailscreen kann ein Geotrack gestartet werden.</p>
-      ${status}
+      <p><strong>Active GeoTrack:</strong> none</p>
+      <p class="helper">On glasses detail screen: Down activates the selected cache as GeoTrack.</p>
+      ${state.companionStatus ? `<p class="companion-status">${state.companionStatus}</p>` : ""}
     `;
     return;
   }
 
+  const metrics = state.activeTrackMetrics;
+  const metricsBlock = metrics
+    ? `<p>Realtime: ${metrics.arrow} ${metrics.direction} · ${metrics.distanceKm.toFixed(2)}km (HDG ${Math.round(metrics.heading)}°)</p>`
+    : "<p>Realtime: waiting for live location...</p>";
+
   companionRoot.innerHTML = `
-    <p><strong>Aktiver Geotrack:</strong> ${escapeHtml(track.cacheName)} (${escapeHtml(track.cacheId)})</p>
-    <form id="track-coordinate-form" class="track-form">
-      <label>
-        Latitude
-        <input id="track-latitude" type="number" step="0.000001" value="${track.lat}" required />
-      </label>
-      <label>
-        Longitude
-        <input id="track-longitude" type="number" step="0.000001" value="${track.lon}" required />
-      </label>
-      <div class="companion-actions">
-        <button type="submit">Koordinate speichern</button>
-        <button type="button" id="stop-track">Geotrack stoppen</button>
-      </div>
-    </form>
-    ${status}
+    <p><strong>Active GeoTrack:</strong> ${state.activeTrack.cacheName} (${state.activeTrack.cacheId})</p>
+    <p>Latitude: ${state.activeTrack.lat}</p>
+    <p>Longitude: ${state.activeTrack.lon}</p>
+    ${metricsBlock}
+    <button type="button" id="stop-track">Stop GeoTrack</button>
+    ${state.companionStatus ? `<p class="companion-status">${state.companionStatus}</p>` : ""}
   `;
 
-  const form = document.getElementById("track-coordinate-form");
-  form?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const latitudeInput = document.getElementById("track-latitude");
-    const longitudeInput = document.getElementById("track-longitude");
-    const nextTrack = normalizeActiveTrack({
-      ...state.activeTrack,
-      lat: latitudeInput?.value,
-      lon: longitudeInput?.value
-    });
-
-    if (!nextTrack) {
-      state.companionStatus = "Ungültige Koordinaten.";
-      renderCompanion();
-      return;
-    }
-
-    setActiveTrack(nextTrack);
-    state.companionStatus = "Koordinate aktualisiert.";
+  const stopButton = document.getElementById("stop-track");
+  stopButton?.addEventListener("click", async () => {
+    state.activeTrack = saveActiveTrack(null);
+    state.companionStatus = "GeoTrack stopped.";
     renderCompanion();
-    render();
+    await renderGlasses();
   });
-
-  document.getElementById("stop-track")?.addEventListener("click", () => {
-    setActiveTrack(null);
-    state.companionStatus = "Geotrack beendet.";
-    renderCompanion();
-    render();
-  });
-}
-
-function registerOrientation() {
-  window.addEventListener("deviceorientationabsolute", (event) => {
-    if (!Number.isFinite(event.alpha)) {
-      return;
-    }
-    state.viewerHeading = normalizeDegrees(360 - event.alpha);
-    render();
-  });
-
-  window.addEventListener("deviceorientation", (event) => {
-    if (!Number.isFinite(event.alpha)) {
-      return;
-    }
-    state.viewerHeading = normalizeDegrees(360 - event.alpha);
-    render();
-  });
-}
-
-function registerListNavigation() {
-  window.addEventListener("wheel", (event) => {
-    if (state.screen !== SCREEN.LIST) {
-      return;
-    }
-
-    const delta = event.deltaY > 0 ? 1 : -1;
-    state.selectedIndex = nextIndex(state.selectedIndex, state.geocaches.length, delta);
-    render();
-  });
-
-  window.addEventListener("keydown", (event) => {
-    if (state.activeTrack && event.key === "ArrowLeft") {
-      state.viewerHeading = normalizeDegrees(state.viewerHeading - 5);
-      render();
-      return;
-    }
-
-    if (state.activeTrack && event.key === "ArrowRight") {
-      state.viewerHeading = normalizeDegrees(state.viewerHeading + 5);
-      render();
-      return;
-    }
-
-    if (state.screen !== SCREEN.LIST) {
-      return;
-    }
-
-    if (event.key === "ArrowDown") {
-      state.selectedIndex = nextIndex(state.selectedIndex, state.geocaches.length, 1);
-      render();
-    }
-
-    if (event.key === "ArrowUp") {
-      state.selectedIndex = nextIndex(state.selectedIndex, state.geocaches.length, -1);
-      render();
-    }
-  });
-
-  let touchStartY = 0;
-  window.addEventListener("touchstart", (event) => {
-    touchStartY = event.changedTouches[0]?.screenY ?? 0;
-  });
-
-  window.addEventListener("touchend", (event) => {
-    if (state.screen !== SCREEN.LIST) {
-      return;
-    }
-
-    const touchEndY = event.changedTouches[0]?.screenY ?? touchStartY;
-    const movement = touchStartY - touchEndY;
-
-    if (Math.abs(movement) < 20) {
-      return;
-    }
-
-    state.selectedIndex = nextIndex(state.selectedIndex, state.geocaches.length, movement > 0 ? 1 : -1);
-    render();
-  });
-}
-
-function registerPositionTracking() {
-  if (!navigator.geolocation) {
-    return;
-  }
-
-  navigator.geolocation.watchPosition(
-    (position) => {
-      state.origin = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude
-      };
-
-      if (state.activeTrack) {
-        render();
-      }
-    },
-    () => {},
-    { maximumAge: 10_000, enableHighAccuracy: true, timeout: 4_000 }
-  );
 }
 
 async function loadGeocaches() {
-  const loading = document.createElement("p");
-  loading.innerText = "Loading geocaches...";
-  root.replaceChildren(loading);
+  if (root) {
+    const loading = document.createElement("p");
+    loading.innerText = "Loading geocaches...";
+    root.replaceChildren(loading);
+  }
 
   if (navigator.geolocation) {
     await new Promise((resolve) => {
@@ -405,12 +159,111 @@ async function loadGeocaches() {
 
   state.geocaches = await fetchNearbyGeocaches({ origin: state.origin, radiusKm: 5 });
   state.selectedIndex = 0;
+  state.detailOptionIndex = DETAIL_OPTION.GEOTRACK;
   state.screen = SCREEN.LIST;
+  state.showHint = false;
+  refreshActiveTrackMetrics();
+
+  if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(
+      async (position) => {
+        state.origin = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+
+        if (state.activeTrack) {
+          refreshActiveTrackMetrics();
+          renderCompanion();
+          await renderGlasses();
+        }
+      },
+      () => {},
+      { maximumAge: 10_000, enableHighAccuracy: true, timeout: 4_000 }
+    );
+  }
+
+  const handleOrientation = async (event) => {
+    if (!Number.isFinite(event?.alpha)) {
+      return;
+    }
+
+    state.viewerHeading = normalizeDegrees(360 - event.alpha);
+    if (state.activeTrack) {
+      refreshActiveTrackMetrics();
+      renderCompanion();
+      await renderGlasses();
+    }
+  };
+
+  window.addEventListener("deviceorientationabsolute", handleOrientation);
+  window.addEventListener("deviceorientation", handleOrientation);
+
+  bridgeClient.onHeading(async (heading) => {
+    state.viewerHeading = normalizeDegrees(heading);
+    if (state.activeTrack) {
+      refreshActiveTrackMetrics();
+      renderCompanion();
+      await renderGlasses();
+    }
+  });
+
+  bridgeClient.onInput(async (input) => {
+    if (input.type === "SelectionChange") {
+      const selection = input.selection;
+      if (selection?.containerName === "cache-list" && Number.isInteger(selection.index)) {
+        const changedScreen = applyListSelectionChange(state, selection.index);
+        if (changedScreen) {
+          await renderGlasses();
+        }
+      }
+      if (selection?.containerName === "detail-options" && Number.isInteger(selection.index)) {
+        state.detailOptionIndex = Math.min(Math.max(0, selection.index), 1);
+      }
+      return;
+    }
+
+    if (state.screen === SCREEN.DETAIL && input.type === "Click") {
+      const toggled = toggleDetailOption(state, (track) => saveActiveTrack(track));
+      if (toggled) {
+        refreshActiveTrackMetrics();
+        renderCompanion();
+        await renderGlasses();
+        return;
+      }
+    }
+
+    const consumedByGeoTrack = handleGeoTrackInput(state, input.type, (track) => saveActiveTrack(track));
+    if (consumedByGeoTrack) {
+      refreshActiveTrackMetrics();
+      renderCompanion();
+      await renderGlasses();
+      return;
+    }
+
+    applyGlassesInput(state, input.type);
+    await renderGlasses();
+  });
+
+  await renderGlasses();
   renderCompanion();
-  render();
+  renderLocalHostPreview();
 }
 
-registerListNavigation();
-registerOrientation();
-registerPositionTracking();
-loadGeocaches();
+async function boot() {
+  renderCompanion();
+  renderLocalHostPreview();
+
+  try {
+    await bridgeClient.connect();
+    ensureRealtimeRenderLoop();
+    await loadGeocaches();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (root) {
+      root.innerHTML = `<p class="helper">Bridge startup failed: ${message}</p>`;
+    }
+  }
+}
+
+boot();
