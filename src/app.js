@@ -41,6 +41,20 @@ function selectedGeocache() {
   return state.geocaches[state.selectedIndex];
 }
 
+function geocacheMetrics(geocache) {
+  const target = { latitude: geocache.latitude, longitude: geocache.longitude };
+  const bearing = bearingDegrees(state.origin, target);
+  return {
+    ...geocache,
+    distanceKm: haversineDistanceKm(state.origin, target),
+    direction: bearingToCardinal(bearing)
+  };
+}
+
+function refreshGeocacheMetrics() {
+  state.geocaches = state.geocaches.map(geocacheMetrics);
+}
+
 function activeTrackMetrics() {
   if (!state.activeTrack) {
     return null;
@@ -137,7 +151,7 @@ function renderList() {
 }
 
 function renderDetail() {
-  const geocache = selectedGeocache();
+  const geocache = geocacheMetrics(selectedGeocache());
   root.innerHTML = `
     <p class="screen-title">CACHE // DETAIL</p>
     ${renderActiveTrackBanner()}
@@ -173,7 +187,7 @@ function renderDetail() {
 }
 
 function renderFinder() {
-  const geocache = selectedGeocache();
+  const geocache = geocacheMetrics(selectedGeocache());
   const hint = state.showHint ? `<p class="hint-text">HINT ${escapeHtml(clampLabel(geocache.hint, 220))}</p>` : "";
 
   root.innerHTML = `
@@ -373,9 +387,8 @@ function registerPositionTracking() {
         longitude: position.coords.longitude
       };
 
-      if (state.activeTrack) {
-        render();
-      }
+      refreshGeocacheMetrics();
+      render();
     },
     () => {},
     { maximumAge: 10_000, enableHighAccuracy: true, timeout: 4_000 }
@@ -404,6 +417,7 @@ async function loadGeocaches() {
   }
 
   state.geocaches = await fetchNearbyGeocaches({ origin: state.origin, radiusKm: 5 });
+  refreshGeocacheMetrics();
   state.selectedIndex = 0;
   state.screen = SCREEN.LIST;
   renderCompanion();
