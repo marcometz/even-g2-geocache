@@ -6,13 +6,16 @@
   "scripts": {
     "test": "node --test",
     "dev": "vite --host",
+    "build": "vite build",
     "start": "npm run dev -- --port 5173",
     "start:even": "bash ./scripts/start-even-dev.sh",
+    "pack": "npm run build && evenhub pack app.json dist -o even-g2-geocache.ehpk",
     "simulator": "node ./scripts/simulator.js",
     "simulator:raw": "evenhub-simulator http://localhost:5173"
   },
   "dependencies": {
-    "@evenrealities/even_hub_sdk": "^0.0.10"
+    "@evenrealities/even_hub_sdk": "^0.0.10",
+    "even-toolkit": "^1.7.2"
   },
   "devDependencies": {
     "vite": "^5.4.0"

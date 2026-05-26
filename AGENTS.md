@@ -29,6 +29,10 @@ The canonical registry location is `AGENTS.md` at the repository root.
   - Path: .codex/skills/even_agent/SKILL.md
 - ui_agent: Same as UIAgent (kept under skills for reuse).
   - Path: .codex/skills/ui_agent/SKILL.md
+- g2_reference: Deep G2 glass-app reference (architecture, display, lifecycle, input, device APIs, error codes, UI patterns, simulator, packaging) distilled from even-g2-notes.
+  - Path: .codex/skills/g2_reference/SKILL.md
+- companion_app: Browser/WebView companion UI reference (even-toolkit components, icons, design tokens, typography) and bridge wiring patterns.
+  - Path: .codex/skills/companion_app/SKILL.md
 
 ## Mandatory Skill Policy
 - Before starting implementation work, always check whether a matching skill exists under `.codex/skills/*/SKILL.md`.
@@ -36,6 +40,8 @@ The canonical registry location is `AGENTS.md` at the repository root.
 - If multiple skills match, use the smallest set that fully covers the task and state the execution order briefly.
 - Proceed without skills only when no matching skill exists.
 - For EvenHub UI rendering/display tasks, `ui_agent` must be used.
+- For any glass-side feature work (container layout, page lifecycle, input handling, device APIs, packaging), `g2_reference` must be consulted before implementation.
+- For any companion-side UI work (iPhone WebView settings/config pages), `companion_app` must be consulted before implementation.
 - Mandatory test policy for all implementation work:
   - Always create or update automated tests for every changed method/function and every changed feature flow.
   - Minimum coverage per feature change: happy path + relevant edge/error cases + regression case for the changed behavior.

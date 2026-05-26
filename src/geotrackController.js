@@ -13,32 +13,6 @@ export const DETAIL_OPTION = {
  * @returns {boolean}
  */
 export function handleGeoTrackInput(state, input, persistTrack) {
-  if (state.screen !== SCREEN.DETAIL) {
-    return false;
-  }
-
-  if (input === "Down") {
-    const selected = state.geocaches[state.selectedIndex];
-    if (!selected) {
-      return true;
-    }
-
-    state.activeTrack = persistTrack({
-      cacheId: selected.id,
-      cacheName: selected.name,
-      lat: selected.latitude,
-      lon: selected.longitude
-    });
-    state.companionStatus = state.activeTrack ? "GeoTrack activated." : "GeoTrack activation failed.";
-    return true;
-  }
-
-  if (input === "Up") {
-    state.activeTrack = persistTrack(null);
-    state.companionStatus = "GeoTrack stopped.";
-    return true;
-  }
-
   return false;
 }
 

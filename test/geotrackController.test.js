@@ -19,30 +19,36 @@ function createState(overrides = {}) {
   };
 }
 
-test("Down in detail activates selected geotrack", () => {
+test("Down in detail no longer activates geotrack (use option click instead)", () => {
   const state = createState();
   const handled = handleGeoTrackInput(state, "Down", (track) => track);
 
-  assert.equal(handled, true);
-  assert.equal(state.activeTrack?.cacheId, "GC2");
-  assert.equal(state.companionStatus, "GeoTrack activated.");
+  assert.equal(handled, false);
+  assert.equal(state.activeTrack, null);
 });
 
-test("Up in detail stops active geotrack", () => {
+test("Up in detail no longer stops geotrack (use option click instead)", () => {
   const state = createState({
     activeTrack: { cacheId: "GC2", cacheName: "Cache Two", lat: 47.2, lon: 8.6 }
   });
 
   const handled = handleGeoTrackInput(state, "Up", () => null);
-  assert.equal(handled, true);
-  assert.equal(state.activeTrack, null);
-  assert.equal(state.companionStatus, "GeoTrack stopped.");
+  assert.equal(handled, false);
+  // track unchanged because handleGeoTrackInput is now a no-op
+  assert.ok(state.activeTrack !== null);
 });
 
 test("non-detail screen does not consume geotrack inputs", () => {
   const state = createState({ screen: SCREEN.LIST });
   const handled = handleGeoTrackInput(state, "Down", (track) => track);
   assert.equal(handled, false);
+});
+
+test("handleGeoTrackInput is a no-op for all inputs", () => {
+  const state = createState();
+  for (const input of ["Up", "Down", "Click", "DoubleClick"]) {
+    assert.equal(handleGeoTrackInput(state, input, (t) => t), false);
+  }
 });
 
 test("detail option click toggles geotrack", () => {

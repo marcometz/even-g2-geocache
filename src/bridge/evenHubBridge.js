@@ -1,5 +1,44 @@
 import { mapEvenHubEvent, readListSelection } from "../input/evenHubEventMapper.js";
 
+const IMAGE_UPDATE_TIMEOUT_MS = 350;
+
+/**
+ * Resolves a bridge promise with a timeout fallback so hardware-side stalls do
+ * not block app interaction forever.
+ * @template T
+ * @param {Promise<T>} promise
+ * @param {number} timeoutMs
+ * @param {T} fallbackValue
+ * @returns {Promise<T>}
+ */
+function withTimeout(promise, timeoutMs, fallbackValue) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        resolve(fallbackValue);
+      }
+    }, timeoutMs);
+
+    promise
+      .then((value) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(value);
+        }
+      })
+      .catch(() => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(fallbackValue);
+        }
+      });
+  });
+}
+
 /**
  * Minimal EvenHub bridge wrapper for startup rendering and input handling.
  */
@@ -19,6 +58,8 @@ export class EvenHubBridgeClient {
     this.headingHandler = null;
     /** @type {any | null} */
     this.imuReportPace = null;
+    /** @type {((event: unknown) => { type: string, direction?: "up"|"down" }|null)|null} */
+    this.toolkitEventMapper = null;
   }
 
   /**
@@ -30,6 +71,13 @@ export class EvenHubBridgeClient {
     this.bridge = await sdk.waitForEvenAppBridge();
     this.osEventTypeList = sdk.OsEventTypeList;
     this.imuReportPace = sdk.ImuReportPace ?? null;
+
+    try {
+      const toolkit = await import("even-toolkit/action-map");
+      this.toolkitEventMapper = typeof toolkit.mapGlassEvent === "function" ? toolkit.mapGlassEvent : null;
+    } catch {
+      this.toolkitEventMapper = null;
+    }
 
     if (this.bridge?.imuControl && this.imuReportPace?.P500) {
       try {
@@ -72,7 +120,7 @@ export class EvenHubBridgeClient {
         return;
       }
 
-      const mapped = mapEvenHubEvent(event, this.osEventTypeList);
+      const mapped = mapEvenHubEvent(event, this.osEventTypeList, this.toolkitEventMapper);
       if (mapped) {
         handler({ type: mapped });
       }
@@ -111,6 +159,35 @@ export class EvenHubBridgeClient {
       return false;
     }
     return this.bridge.rebuildPageContainer(payload);
+  }
+
+  /**
+   * Partial in-place text update for a single existing text container.
+   * Flicker-free on hardware compared to a full `rebuild`.
+   * @param {{ containerID: number, containerName: string, content: string, contentOffset?: number, contentLength?: number }} payload
+   * @returns {Promise<boolean>}
+   */
+  async upgradeText(payload) {
+    if (!this.ready || !this.bridge?.textContainerUpgrade) {
+      return false;
+    }
+    return this.bridge.textContainerUpgrade(payload);
+  }
+
+  /**
+   * Updates an existing image container with PNG bytes.
+   * @param {{ containerID: number, containerName: string, imageData: number[]|Uint8Array|ArrayBuffer|string }} payload
+   * @returns {Promise<boolean>}
+   */
+  async updateImage(payload) {
+    if (!this.ready || !this.bridge?.updateImageRawData) {
+      return false;
+    }
+
+    // On real hardware, image pushes can occasionally stall and never resolve.
+    // Protect the interaction loop by timing out quickly instead of awaiting
+    // forever in click handlers or render paths.
+    return withTimeout(this.bridge.updateImageRawData(payload), IMAGE_UPDATE_TIMEOUT_MS, false);
   }
 }
 

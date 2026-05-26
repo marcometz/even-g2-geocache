@@ -30,10 +30,13 @@ body {
 }
 
 .glass-screen {
-  width: 576px;
-  height: 288px;
+  width: min(100%, 576px);
+  aspect-ratio: 2 / 1;
+  height: auto;
+  min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
+  margin-inline: auto;
 }
 
 .geocache-list {
@@ -157,6 +160,28 @@ button:disabled {
 .companion-status {
   color: var(--g3);
   margin-top: 0.35rem;
+}
+
+.app-version {
+  color: var(--g3);
+  font-size: 0.72rem;
+  text-align: right;
+  margin-top: 0.45rem;
+  opacity: 0.9;
+}
+
+.companion-location {
+  border: 1px solid var(--g1);
+  padding: 0.45rem 0.55rem;
+  margin: 0.45rem 0;
+}
+
+.companion-location.gps-good {
+  border-color: var(--g3);
+}
+
+.companion-location.gps-pending {
+  border-color: var(--g2);
 }
 
 .action-btn {

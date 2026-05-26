@@ -1,4 +1,5 @@
-import { nextIndex, SCREEN } from "./state.js";
+import { SCREEN } from "./state.js";
+import { dispatchScreenAction } from "./glass/selectors.js";
 
 /**
  * Applies a list selection change from EvenHub list events.
@@ -10,6 +11,11 @@ import { nextIndex, SCREEN } from "./state.js";
  */
 export function applyListSelectionChange(state, selectionIndex) {
   if (state.screen !== SCREEN.LIST) {
+    return false;
+  }
+
+  if (!state.geocaches || state.geocaches.length === 0) {
+    state.selectedIndex = 0;
     return false;
   }
 
@@ -31,51 +37,12 @@ export function applyListSelectionChange(state, selectionIndex) {
 }
 
 /**
- * Applies a glasses input event to the application navigation state.
+ * Applies a glasses input event to the application navigation state by
+ * delegating to the per-screen action handler.
  * @param {{ screen: string, selectedIndex: number, geocaches: unknown[], showHint: boolean }} state
  * @param {"Click"|"DoubleClick"|"Up"|"Down"} input
  * @returns {void}
  */
 export function applyGlassesInput(state, input) {
-  if (state.screen === SCREEN.LIST) {
-    if (input === "Up") {
-      state.selectedIndex = nextIndex(state.selectedIndex, state.geocaches.length, -1);
-      return;
-    }
-
-    if (input === "Down") {
-      state.selectedIndex = nextIndex(state.selectedIndex, state.geocaches.length, 1);
-      return;
-    }
-
-    if (input === "Click") {
-      state.screen = SCREEN.DETAIL;
-      state.showHint = false;
-    }
-    return;
-  }
-
-  if (state.screen === SCREEN.DETAIL) {
-    if (input === "DoubleClick") {
-      state.screen = SCREEN.LIST;
-      return;
-    }
-
-    if (input === "Click") {
-      state.screen = SCREEN.FINDER;
-      state.showHint = false;
-    }
-    return;
-  }
-
-  if (state.screen === SCREEN.FINDER) {
-    if (input === "DoubleClick") {
-      state.screen = SCREEN.DETAIL;
-      return;
-    }
-
-    if (input === "Click") {
-      state.showHint = true;
-    }
-  }
+  dispatchScreenAction(state, input);
 }

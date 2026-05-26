@@ -1,25 +1,32 @@
 {
-  "package_id": "com.example.g2demo",
+  "package_id": "com.metz.g2geocache",
   "edition": "202601",
-  "name": "G2 Demo",
-  "version": "0.1.0",
+  "name": "G2 Geocache",
+  "version": "0.1.8",
   "min_app_version": "2.0.0",
-  "min_sdk_version": "0.0.7",
+  "min_sdk_version": "0.0.10",
+  "tagline": "Nearby geocaches on your glasses.",
+  "description": "Find nearby geocaches from your phone GPS, view cache details on the glasses, and follow an active GeoTrack compass.",
+  "author": "metz",
   "entrypoint": "index.html",
   "permissions": [
     {
       "name": "network",
-      "desc": "This app needs to access the network in order to ...",
+      "desc": "Loads nearby geocache data from OpenCaching OKAPI installations.",
       "whitelist": [
-        "https://example.com"
+        "https://www.opencaching.de",
+        "https://opencache.uk",
+        "https://opencaching.pl",
+        "https://opencaching.de"
       ]
     },
     {
       "name": "location",
-      "desc": "This app needs to access the location in order to ..."
+      "desc": "Uses the phone location to search nearby geocaches and guide GeoTrack."
     }
   ],
   "supported_languages": [
+    "de",
     "en"
   ]
 }

@@ -38,12 +38,21 @@ npm run start:even
 
 This uses a Vite dev server (`npm run dev`) on port `5173`.
 
+GPS note: phone geolocation is requested through the browser/WebView
+`navigator.geolocation` API. A LAN QR URL such as `http://192.168.x.x:5173`
+can be blocked by iOS/WKWebView with `Origin does not have permission to use
+Geolocation service`. For GPS testing on the phone, use a packaged EvenHub
+build with the `location` permission in `app.json`, or serve the dev URL over
+trusted HTTPS.
+
 Useful environment variables:
 
 - `DEV_IP` or `DEV_URL` to force a specific reachable URL
 - `START_SIMULATOR=0` to start only server + QR
 - `SIMULATOR_GLOW=1` to pass `-g` to the simulator
 - `SIMULATOR_AUTOMATION_PORT=9898` to expose simulator automation API
+- `VITE_GEOCACHE_FALLBACK=1` to force three local test geocaches
+  (`VITE_GEOCACHE_FALLBACK=0` disables the automatic Vite dev fallback)
 
 Example:
 
@@ -61,6 +70,47 @@ npm start
 ```
 
 This starts Vite and serves the app on `http://localhost:5173`.
+
+### Pack for phone GPS testing
+
+For real phone GPS, prefer a packaged EvenHub build so the `location`
+permission in `app.json` is applied:
+
+```bash
+npm run pack
+```
+
+This writes `even-g2-geocache.ehpk`. Install/test that package through the
+EvenHub developer flow instead of the plain `http://<lan-ip>:5173` QR when you
+need `navigator.geolocation`.
+
+### OpenCaching OKAPI data source
+
+The app loads nearby caches from OpenCaching OKAPI, which supports direct
+browser/WebView requests with CORS. The default OpenCaching.DE consumer key is
+built into the app, so a normal package build is enough:
+
+```bash
+npm run pack
+```
+
+By default the app queries `https://www.opencaching.de/okapi`. To target a
+different whitelisted OKAPI installation, also set
+`VITE_OPENCACHING_API_BASE_URL` and optionally override the consumer key, for
+example:
+
+```bash
+VITE_OPENCACHING_API_BASE_URL=https://opencache.uk/okapi \
+VITE_OPENCACHING_CONSUMER_KEY=your-consumer-key \
+npm run pack
+```
+
+Direct `api.groundspeak.com` requests are not used because the EvenHub network
+whitelist does not bypass browser CORS.
+
+For local Vite development, the app automatically enables three nearby demo
+geocaches when GPS/API data is unavailable. Packaged builds keep this fallback
+disabled unless `VITE_GEOCACHE_FALLBACK=1` is set explicitly.
 
 ### 2) Run the Even simulator against the local URL
 

@@ -65,11 +65,29 @@ function readEventType(part) {
  * Maps an EvenHub event to a normalized input event for app navigation.
  * @param {unknown} event
  * @param {{ fromJson: (value: unknown) => number | undefined }} osEventTypeResolver
+ * @param {((event: unknown) => { type: string, direction?: "up"|"down" }|null)|null} [toolkitMapper]
  * @returns {GlassInputEventType|null}
  */
-export function mapEvenHubEvent(event, osEventTypeResolver) {
+export function mapEvenHubEvent(event, osEventTypeResolver, toolkitMapper = null) {
   if (!event || typeof event !== "object") {
     return null;
+  }
+
+  if (readListSelection(event) !== null) {
+    return null;
+  }
+
+  const mappedByToolkit = typeof toolkitMapper === "function"
+    ? toolkitMapper(/** @type {any} */ (event))
+    : null;
+  if (mappedByToolkit?.type === "SELECT_HIGHLIGHTED") {
+    return "Click";
+  }
+  if (mappedByToolkit?.type === "GO_BACK") {
+    return "DoubleClick";
+  }
+  if (mappedByToolkit?.type === "HIGHLIGHT_MOVE") {
+    return mappedByToolkit.direction === "up" ? "Up" : "Down";
   }
 
   const payload = /** @type {Record<string, unknown>} */ (event);
@@ -97,10 +115,6 @@ export function mapEvenHubEvent(event, osEventTypeResolver) {
     if (normalized === 3) {
       return "DoubleClick";
     }
-  }
-
-  if (readListSelection(event) !== null) {
-    return null;
   }
 
   // Regression guard: host payloads can omit zero-valued click eventType.
